@@ -5,19 +5,19 @@ Desktop app for exploring files that match rclone filter rules. Built with PySid
 ## Development
 
 1. Install uv: <https://github.com/astral-sh/uv>
-2. Sync dependencies:
+1. Sync dependencies (including dev extras):
    ```
-   uv sync
+   uv sync --extra dev
    ```
-3. Enable git hooks:
+1. Enable git hooks:
    ```
-   uv run pre-commit install
+   uv run --extra dev pre-commit install
    ```
-4. Run quality checks:
+1. Run quality checks:
    ```
-   uv run nox
+   uv run --extra dev nox
    ```
-5. Launch the app in dev mode:
+1. Launch the app in dev mode:
    ```
    uv run show-excluded-and-ignored
    ```
@@ -25,4 +25,3 @@ Desktop app for exploring files that match rclone filter rules. Built with PySid
 ## Status
 
 Early scaffolding stage. Refer to `docs/program-specifications.md` for the roadmap.
-
