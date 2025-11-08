@@ -6,21 +6,24 @@ import logging
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QThread
-from PySide6.QtGui import QCloseEvent
+from PySide6.QtGui import QAction, QCloseEvent
 from PySide6.QtWidgets import (
     QDockWidget,
     QMainWindow,
     QMessageBox,
     QSplitter,
+    QToolBar,
     QVBoxLayout,
     QWidget,
 )
 
+from .models.fs_model import PathNode
 from .services.config import SettingsStore
 from .views.rules_panel import RulesPanel
 from .views.search_bar import SearchBar
 from .views.status_bar import AppStatusBar
 from .views.tree_panel import TreePanel
+from .workers.delete_worker import DeleteResult, DeleteWorker
 from .workers.scan_worker import ScanPayload, ScanWorker
 
 logger = logging.getLogger(__name__)
@@ -44,6 +47,10 @@ class MainWindow(QMainWindow):
 
         self._scan_thread: QThread | None = None
         self._scan_worker: ScanWorker | None = None
+        self._delete_thread: QThread | None = None
+        self._delete_worker: DeleteWorker | None = None
+        self._delete_errors: list[str] = []
+        self._controls_enabled = True
 
         self.setWindowTitle("Show Excluded and Ignored")
         self.resize(1200, 800)
@@ -76,7 +83,18 @@ class MainWindow(QMainWindow):
         self.status_bar = AppStatusBar(self)
         self.setStatusBar(self.status_bar)
 
+        self._create_actions()
         self._make_connections()
+
+    def _create_actions(self) -> None:
+        toolbar = QToolBar("Main actions", self)
+        toolbar.setMovable(False)
+        self.addToolBar(toolbar)
+
+        self.delete_action = QAction("Delete…", self)
+        self.delete_action.setEnabled(False)
+        self.delete_action.triggered.connect(self._prompt_delete_selection)
+        toolbar.addAction(self.delete_action)
 
     def _create_central_layout(self, splitter: QSplitter) -> QVBoxLayout:
         layout = QVBoxLayout()
@@ -88,6 +106,8 @@ class MainWindow(QMainWindow):
     def _make_connections(self) -> None:
         self.search_bar.searchRequested.connect(self.tree_panel.on_search_requested)
         self.rules_panel.selectionChanged.connect(self.tree_panel.on_rules_selection_changed)
+        self.tree_panel.selectionChanged.connect(self._update_action_states)
+        self.tree_panel.deleteRequested.connect(self._prompt_delete_selection)
 
     def _restore_state(self) -> None:
         geometry = self._settings_store.load_window_geometry()
@@ -98,6 +118,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event: QCloseEvent) -> None:
         self._cancel_active_scan(wait=True)
+        self._cancel_active_delete(wait=True)
         self._settings_store.save_window_geometry(self.saveGeometry())
         super().closeEvent(event)
 
@@ -123,12 +144,12 @@ class MainWindow(QMainWindow):
         if not self.rules_panel.rules:
             self.status_bar.set_message("No rules loaded.")
             self.tree_panel.load_nodes([], [])
-            self._set_scan_ui_enabled(True)
+            self._set_controls_enabled(True)
             return
 
         self.status_bar.set_message("Starting scan…")
         self.status_bar.set_progress(None)
-        self._set_scan_ui_enabled(False)
+        self._set_controls_enabled(False)
 
         worker = ScanWorker(root_path=self._root_path, rules=self.rules_panel.rules)
         thread = QThread(self)
@@ -160,6 +181,8 @@ class MainWindow(QMainWindow):
             self._scan_thread.quit()
             if wait:
                 self._scan_thread.wait(3000)
+            self._scan_thread = None
+            self._scan_worker = None
 
     def _on_scan_progress(self, scanned: int, matched: int, current_path: str) -> None:
         parts = [f"Scanning… {matched} matches / {scanned} items"]
@@ -176,22 +199,132 @@ class MainWindow(QMainWindow):
             f"{payload.stats.scanned} items in {duration_text}",
         )
         self.status_bar.set_progress(None)
-        self._set_scan_ui_enabled(True)
+        self._set_controls_enabled(True)
 
     def _on_scan_error(self, message: str) -> None:
         self.status_bar.set_message("Scan failed.")
-        self._set_scan_ui_enabled(True)
+        self._set_controls_enabled(True)
         QMessageBox.critical(self, "Scan failed", message)
 
     def _on_scan_cancelled(self) -> None:
         self.status_bar.set_message("Scan cancelled.")
         self.status_bar.set_progress(None)
-        self._set_scan_ui_enabled(True)
+        self._set_controls_enabled(True)
 
     def _on_scan_thread_finished(self) -> None:
         self._scan_thread = None
         self._scan_worker = None
 
-    def _set_scan_ui_enabled(self, enabled: bool) -> None:
+    # ------------------------------------------------------------------
+    # Delete workflow
+
+    def _prompt_delete_selection(self) -> None:
+        if not self._controls_enabled:
+            return
+
+        nodes = self.tree_panel.selected_nodes()
+        if not nodes:
+            return
+
+        count = len(nodes)
+        total_size = sum(node.size or 0 for node in nodes if node.size)
+        preview_lines = [str(node.abs_path) for node in nodes[:10]]
+        if count > 10:
+            preview_lines.append(f"… and {count - 10} more")
+
+        size_text = self._format_size(total_size) if total_size else "unknown"
+        message = (
+            f"Move {count} item(s) to Trash?\n\n"
+            f"Size (files only): {size_text}\n\n"
+            f"Items:\n" + "\n".join(preview_lines)
+        )
+
+        response = QMessageBox.question(
+            self,
+            "Confirm delete",
+            message,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if response != QMessageBox.StandardButton.Yes:
+            return
+
+        self._start_delete(nodes)
+
+    def _start_delete(self, nodes: list[PathNode]) -> None:
+        self._cancel_active_delete(wait=True)
+        paths = [node.abs_path for node in nodes]
+        self.status_bar.set_message("Deleting selected items…")
+        self._set_controls_enabled(False)
+        self._delete_errors = []
+
+        worker = DeleteWorker(paths)
+        thread = QThread(self)
+        worker.moveToThread(thread)
+
+        thread.started.connect(worker.start)
+        worker.progress.connect(self._on_delete_progress)
+        worker.finished.connect(self._on_delete_finished)
+        worker.error.connect(self._on_delete_error)
+
+        worker.finished.connect(thread.quit)
+        worker.error.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        worker.error.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        thread.finished.connect(self._on_delete_thread_finished)
+
+        self._delete_worker = worker
+        self._delete_thread = thread
+        thread.start()
+
+    def _cancel_active_delete(self, *, wait: bool) -> None:
+        if self._delete_thread is not None:
+            self._delete_thread.quit()
+            if wait:
+                self._delete_thread.wait(3000)
+            self._delete_thread = None
+            self._delete_worker = None
+
+    def _on_delete_progress(self, current: int, total: int, path: str) -> None:
+        self.status_bar.set_message(f"Deleting {current}/{total}: {path}")
+
+    def _on_delete_error(self, message: str) -> None:
+        self._delete_errors.append(message)
+
+    def _on_delete_finished(self, result: DeleteResult) -> None:
+        if self._delete_errors:
+            QMessageBox.warning(self, "Delete issues", "\n".join(self._delete_errors))
+
+        summary = f"Deleted {len(result.removed)} item(s). {len(result.failed)} failed."
+        self.status_bar.set_message(summary)
+        self._set_controls_enabled(True)
+        self._start_scan()
+
+    def _on_delete_thread_finished(self) -> None:
+        self._delete_thread = None
+        self._delete_worker = None
+        self._delete_errors = []
+
+    # ------------------------------------------------------------------
+    # Shared helpers
+
+    def _set_controls_enabled(self, enabled: bool) -> None:
+        self._controls_enabled = enabled
         self.rules_panel.setEnabled(enabled)
         self.search_bar.setEnabled(enabled)
+        self.tree_panel.setEnabled(enabled)
+        self._update_action_states()
+
+    def _update_action_states(self) -> None:
+        has_selection = bool(self.tree_panel.selected_nodes())
+        self.delete_action.setEnabled(self._controls_enabled and has_selection)
+
+    @staticmethod
+    def _format_size(num_bytes: int) -> str:
+        value = float(num_bytes)
+        for unit in ["B", "KB", "MB", "GB", "TB"]:
+            if value < 1024:
+                return f"{value:.1f} {unit}"
+            value /= 1024
+        return f"{value:.1f} PB"

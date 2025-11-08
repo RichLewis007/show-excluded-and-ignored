@@ -7,8 +7,15 @@ import re
 from collections.abc import Sequence
 from pathlib import Path
 
-from PySide6.QtCore import QModelIndex, QRegularExpression, QSortFilterProxyModel, Qt
-from PySide6.QtWidgets import QAbstractItemView, QTreeView, QVBoxLayout, QWidget
+from PySide6.QtCore import (
+    QModelIndex,
+    QPoint,
+    QRegularExpression,
+    QSortFilterProxyModel,
+    Qt,
+    Signal,
+)
+from PySide6.QtWidgets import QAbstractItemView, QMenu, QTreeView, QVBoxLayout, QWidget
 
 from rfe.models.fs_model import PathNode, PathTreeModel
 from rfe.models.rules_model import Rule
@@ -71,6 +78,9 @@ class TreeFilterProxyModel(QSortFilterProxyModel):
 class TreePanel(QWidget):
     """Wrapper around QTreeView for displaying root paths."""
 
+    deleteRequested = Signal()
+    selectionChanged = Signal()
+
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._model = PathTreeModel(self)
@@ -84,6 +94,11 @@ class TreePanel(QWidget):
         self._tree.setSortingEnabled(False)
         self._tree.setAnimated(True)
         self._tree.setHeaderHidden(False)
+        self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._tree.customContextMenuRequested.connect(self._show_context_menu)
+
+        selection_model = self._tree.selectionModel()
+        selection_model.selectionChanged.connect(self.selectionChanged.emit)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -97,13 +112,9 @@ class TreePanel(QWidget):
         header.setStretchLastSection(True)
         for column in range(self._model.columnCount()):
             self._tree.resizeColumnToContents(column)
-
-    def load_demo_data(self, rules: Sequence[Rule], root: Path) -> None:
-        nodes = self._build_demo_nodes(rules, root)
-        self.load_nodes(nodes, rules)
+        self.selectionChanged.emit()
 
     def set_root_path(self, path: Path) -> None:
-        # Placeholder for future integration with live filesystem data.
         self._tree.setWhatsThis(f"Root path: {path}")
 
     def on_search_requested(self, text: str, mode: SearchMode, case_sensitive: bool) -> None:
@@ -114,12 +125,23 @@ class TreePanel(QWidget):
         self._proxy.set_rule_filter(rule_indices)
 
     def selected_paths(self) -> list[Path]:
-        paths: list[Path] = []
+        return [node.abs_path for node in self.selected_nodes()]
+
+    def selected_nodes(self) -> list[PathNode]:
+        nodes: list[PathNode] = []
         for index in self._tree.selectionModel().selectedRows():
             node = index.data(Qt.ItemDataRole.UserRole)
             if isinstance(node, PathNode):
-                paths.append(node.abs_path)
-        return paths
+                nodes.append(node)
+        return nodes
+
+    def _show_context_menu(self, point: QPoint) -> None:
+        if not self.selected_nodes():
+            return
+        menu = QMenu(self)
+        delete_action = menu.addAction("Delete…")
+        delete_action.triggered.connect(lambda: self.deleteRequested.emit())
+        menu.exec(self._tree.viewport().mapToGlobal(point))
 
     def _build_regex(
         self,
@@ -147,64 +169,3 @@ class TreePanel(QWidget):
         if not regex.isValid():
             return QRegularExpression()
         return regex
-
-    def _build_demo_nodes(self, rules: Sequence[Rule], root: Path) -> list[PathNode]:
-        first_rule = 0 if rules else None
-        second_rule = 1 if len(rules) > 1 else first_rule
-
-        base = root if root.exists() else Path("/Users/rich/Downloads")
-
-        node_modules = PathNode(
-            abs_path=base / "project" / "node_modules",
-            rel_path="project/node_modules",
-            type="dir",
-            rule_index=first_rule,
-            children=[
-                PathNode(
-                    abs_path=base / "project" / "node_modules" / "left-pad",
-                    rel_path="project/node_modules/left-pad",
-                    type="dir",
-                    rule_index=first_rule,
-                ),
-                PathNode(
-                    abs_path=base / "project" / "node_modules" / ".bin" / "eslint",
-                    rel_path="project/node_modules/.bin/eslint",
-                    type="file",
-                    size=2048,
-                    rule_index=first_rule,
-                ),
-            ],
-        )
-
-        cache_dir = PathNode(
-            abs_path=base / "Library" / "Caches" / "Temp",
-            rel_path="Library/Caches/Temp",
-            type="dir",
-            rule_index=second_rule,
-            children=[
-                PathNode(
-                    abs_path=base / "Library" / "Caches" / "Temp" / "artifact.tmp",
-                    rel_path="Library/Caches/Temp/artifact.tmp",
-                    type="file",
-                    size=5120,
-                    rule_index=second_rule,
-                ),
-                PathNode(
-                    abs_path=base / "Library" / "Caches" / "Temp" / "ignored.log",
-                    rel_path="Library/Caches/Temp/ignored.log",
-                    type="file",
-                    size=16384,
-                    rule_index=second_rule,
-                ),
-            ],
-        )
-
-        misc_file = PathNode(
-            abs_path=base / "Thumbs.db",
-            rel_path="Thumbs.db",
-            type="file",
-            size=4096,
-            rule_index=first_rule,
-        )
-
-        return [node_modules, cache_dir, misc_file]

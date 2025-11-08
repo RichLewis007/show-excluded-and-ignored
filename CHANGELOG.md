@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Main window wiring for live scans, status-bar progress updates, and safe thread teardown.
 - Tri-state “Select all” control for rule filters plus type-safe PySide6 integrations.
 - Expanded pre-commit tooling (ruff, mdformat, JSON formatters) and hardened project ignore list.
+- Delete workflow with confirmation dialog and asynchronous Trash worker.
 
 ## [0.1.0] - 2025-11-08
 
