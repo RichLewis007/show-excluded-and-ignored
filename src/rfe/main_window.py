@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QThread
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QDockWidget,
@@ -21,6 +21,7 @@ from .views.rules_panel import RulesPanel
 from .views.search_bar import SearchBar
 from .views.status_bar import AppStatusBar
 from .views.tree_panel import TreePanel
+from .workers.scan_worker import ScanPayload, ScanWorker
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,9 @@ class MainWindow(QMainWindow):
         self._root_path = root_path
         self._filter_file = filter_file
         self._settings_store = settings_store
+
+        self._scan_thread: QThread | None = None
+        self._scan_worker: ScanWorker | None = None
 
         self.setWindowTitle("Show Excluded and Ignored")
         self.resize(1200, 800)
@@ -93,6 +97,7 @@ class MainWindow(QMainWindow):
             logger.debug("No previous window geometry stored.")
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        self._cancel_active_scan(wait=True)
         self._settings_store.save_window_geometry(self.saveGeometry())
         super().closeEvent(event)
 
@@ -105,6 +110,88 @@ class MainWindow(QMainWindow):
             )
         else:
             self.rules_panel.load_rules_from_path(self._filter_file)
-            self.tree_panel.load_demo_data(self.rules_panel.rules, self._root_path)
 
         self.tree_panel.set_root_path(self._root_path)
+        self._start_scan()
+
+    # ------------------------------------------------------------------
+    # Scanning lifecycle
+
+    def _start_scan(self) -> None:
+        self._cancel_active_scan(wait=True)
+
+        if not self.rules_panel.rules:
+            self.status_bar.set_message("No rules loaded.")
+            self.tree_panel.load_nodes([], [])
+            self._set_scan_ui_enabled(True)
+            return
+
+        self.status_bar.set_message("Starting scan…")
+        self.status_bar.set_progress(None)
+        self._set_scan_ui_enabled(False)
+
+        worker = ScanWorker(root_path=self._root_path, rules=self.rules_panel.rules)
+        thread = QThread(self)
+        worker.moveToThread(thread)
+
+        thread.started.connect(worker.start)
+        worker.progress.connect(self._on_scan_progress)
+        worker.finished.connect(self._on_scan_finished)
+        worker.error.connect(self._on_scan_error)
+        worker.cancelled.connect(self._on_scan_cancelled)
+
+        worker.finished.connect(thread.quit)
+        worker.error.connect(thread.quit)
+        worker.cancelled.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        worker.error.connect(worker.deleteLater)
+        worker.cancelled.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        thread.finished.connect(self._on_scan_thread_finished)
+
+        self._scan_worker = worker
+        self._scan_thread = thread
+        thread.start()
+
+    def _cancel_active_scan(self, *, wait: bool) -> None:
+        if self._scan_worker is not None:
+            self._scan_worker.request_cancel()
+        if self._scan_thread is not None:
+            self._scan_thread.quit()
+            if wait:
+                self._scan_thread.wait(3000)
+
+    def _on_scan_progress(self, scanned: int, matched: int, current_path: str) -> None:
+        parts = [f"Scanning… {matched} matches / {scanned} items"]
+        if current_path and current_path not in {"", "done"}:
+            parts.append(current_path)
+        self.status_bar.set_message(" — ".join(parts))
+
+    def _on_scan_finished(self, payload: ScanPayload) -> None:
+        self.tree_panel.load_nodes(payload.nodes, self.rules_panel.rules)
+        duration = payload.stats.duration
+        duration_text = f"{duration:.2f}s" if duration is not None else "n/a"
+        self.status_bar.set_message(
+            f"Scan complete: {payload.stats.matched} matches across "
+            f"{payload.stats.scanned} items in {duration_text}",
+        )
+        self.status_bar.set_progress(None)
+        self._set_scan_ui_enabled(True)
+
+    def _on_scan_error(self, message: str) -> None:
+        self.status_bar.set_message("Scan failed.")
+        self._set_scan_ui_enabled(True)
+        QMessageBox.critical(self, "Scan failed", message)
+
+    def _on_scan_cancelled(self) -> None:
+        self.status_bar.set_message("Scan cancelled.")
+        self.status_bar.set_progress(None)
+        self._set_scan_ui_enabled(True)
+
+    def _on_scan_thread_finished(self) -> None:
+        self._scan_thread = None
+        self._scan_worker = None
+
+    def _set_scan_ui_enabled(self, enabled: bool) -> None:
+        self.rules_panel.setEnabled(enabled)
+        self.search_bar.setEnabled(enabled)
