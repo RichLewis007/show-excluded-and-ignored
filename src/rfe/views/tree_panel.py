@@ -8,6 +8,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from PySide6.QtCore import (
+    QItemSelection,
     QModelIndex,
     QPoint,
     QRegularExpression,
@@ -86,6 +87,7 @@ class TreePanel(QWidget):
         self._model = PathTreeModel(self)
         self._proxy = TreeFilterProxyModel(self)
         self._proxy.setSourceModel(self._model)
+        self._current_nodes: list[PathNode] = []
 
         self._tree = QTreeView(self)
         self._tree.setModel(self._proxy)
@@ -98,7 +100,7 @@ class TreePanel(QWidget):
         self._tree.customContextMenuRequested.connect(self._show_context_menu)
 
         selection_model = self._tree.selectionModel()
-        selection_model.selectionChanged.connect(self.selectionChanged.emit)
+        selection_model.selectionChanged.connect(self._on_selection_changed)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -107,6 +109,7 @@ class TreePanel(QWidget):
 
     def load_nodes(self, nodes: Sequence[PathNode], rules: Sequence[Rule]) -> None:
         self._model.load_nodes(nodes, rules)
+        self._current_nodes = list(nodes)
         self._tree.expandToDepth(0)
         header = self._tree.header()
         header.setStretchLastSection(True)
@@ -140,8 +143,43 @@ class TreePanel(QWidget):
             return
         menu = QMenu(self)
         delete_action = menu.addAction("Delete…")
-        delete_action.triggered.connect(lambda: self.deleteRequested.emit())
+        delete_action.triggered.connect(lambda _checked=False: self.deleteRequested.emit())
         menu.exec(self._tree.viewport().mapToGlobal(point))
+
+    def _on_selection_changed(
+        self,
+        selected: QItemSelection,
+        deselected: QItemSelection,
+    ) -> None:
+        _ = selected, deselected
+        self.selectionChanged.emit()
+
+    def collect_nodes(self, *, visible_only: bool) -> list[PathNode]:
+        if visible_only:
+            collected: list[PathNode] = []
+
+            def walk(parent: QModelIndex) -> None:
+                proxy = self._proxy
+                for row in range(proxy.rowCount(parent)):
+                    index = proxy.index(row, 0, parent)
+                    node = index.data(Qt.ItemDataRole.UserRole)
+                    if isinstance(node, PathNode):
+                        collected.append(node)
+                    walk(index)
+
+            walk(QModelIndex())
+            return collected
+
+        flattened: list[PathNode] = []
+
+        def flatten(nodes: Sequence[PathNode]) -> None:
+            for node in nodes:
+                flattened.append(node)
+                if node.children:
+                    flatten(node.children)
+
+        flatten(self._current_nodes)
+        return flattened
 
     def _build_regex(
         self,

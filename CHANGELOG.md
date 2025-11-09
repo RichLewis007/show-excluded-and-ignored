@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tri-state “Select all” control for rule filters plus type-safe PySide6 integrations.
 - Expanded pre-commit tooling (ruff, mdformat, JSON formatters) and hardened project ignore list.
 - Delete workflow with confirmation dialog and asynchronous Trash worker.
+- Export dialog supporting lines, CSV, JSON, and JSONL formats for visible or full results.
+- Persistent settings for last-used root/filter paths and default export format.
 
 ## [0.1.0] - 2025-11-08
 

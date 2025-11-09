@@ -3,6 +3,7 @@ docs/
 
 # local only files
 rclone-filter-list.txt
+check.sh
 
 # Python version managers
 .python-version

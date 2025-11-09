@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+import csv
+import json
 import logging
+from collections.abc import Iterable
+from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QThread
 from PySide6.QtGui import QAction, QCloseEvent
 from PySide6.QtWidgets import (
     QDockWidget,
+    QFileDialog,
     QMainWindow,
     QMessageBox,
     QSplitter,
@@ -41,8 +46,9 @@ class MainWindow(QMainWindow):
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
-        self._root_path = root_path
-        self._filter_file = filter_file
+        last_root, last_filter = settings_store.load_last_paths()
+        self._root_path = last_root if last_root and last_root.exists() else root_path
+        self._filter_file = last_filter if last_filter and last_filter.exists() else filter_file
         self._settings_store = settings_store
 
         self._scan_thread: QThread | None = None
@@ -51,6 +57,8 @@ class MainWindow(QMainWindow):
         self._delete_worker: DeleteWorker | None = None
         self._delete_errors: list[str] = []
         self._controls_enabled = True
+        self._last_scan_nodes: list[PathNode] = []
+        self._last_export_format = self._settings_store.load_export_format()
 
         self.setWindowTitle("Show Excluded and Ignored")
         self.resize(1200, 800)
@@ -96,6 +104,11 @@ class MainWindow(QMainWindow):
         self.delete_action.triggered.connect(self._prompt_delete_selection)
         toolbar.addAction(self.delete_action)
 
+        self.export_action = QAction("Export…", self)
+        self.export_action.setEnabled(False)
+        self.export_action.triggered.connect(self._prompt_export)
+        toolbar.addAction(self.export_action)
+
     def _create_central_layout(self, splitter: QSplitter) -> QVBoxLayout:
         layout = QVBoxLayout()
         layout.setContentsMargins(8, 8, 8, 8)
@@ -140,6 +153,7 @@ class MainWindow(QMainWindow):
 
     def _start_scan(self) -> None:
         self._cancel_active_scan(wait=True)
+        self._last_scan_nodes = []
 
         if not self.rules_panel.rules:
             self.status_bar.set_message("No rules loaded.")
@@ -200,6 +214,9 @@ class MainWindow(QMainWindow):
         )
         self.status_bar.set_progress(None)
         self._set_controls_enabled(True)
+        self._last_scan_nodes = self.tree_panel.collect_nodes(visible_only=False)
+        self._settings_store.save_last_paths(self._root_path, self._filter_file)
+        self._update_action_states()
 
     def _on_scan_error(self, message: str) -> None:
         self.status_bar.set_message("Scan failed.")
@@ -307,6 +324,159 @@ class MainWindow(QMainWindow):
         self._delete_errors = []
 
     # ------------------------------------------------------------------
+    # Export workflow
+
+    def _prompt_export(self) -> None:
+        if not self._last_scan_nodes:
+            QMessageBox.information(self, "Export", "Nothing to export yet.")
+            return
+
+        filters = "Text files (*.txt);;CSV files (*.csv);;JSON files (*.json);;JSON Lines (*.jsonl)"
+        initial_filter = {
+            "lines": "Text files (*.txt)",
+            "csv": "CSV files (*.csv)",
+            "json": "JSON files (*.json)",
+            "jsonl": "JSON Lines (*.jsonl)",
+        }.get(self._last_export_format, "Text files (*.txt)")
+
+        filename, selected_filter = QFileDialog.getSaveFileName(
+            self,
+            "Export matches",
+            str(self._root_path),
+            filters,
+            initial_filter,
+        )
+        if not filename:
+            return
+
+        fmt = self._determine_export_format(filename, selected_filter)
+        if fmt is None:
+            QMessageBox.warning(self, "Export", "Unable to determine export format.")
+            return
+
+        choice = QMessageBox.question(
+            self,
+            "Export scope",
+            "Export only visible rows?",
+            QMessageBox.StandardButton.Yes
+            | QMessageBox.StandardButton.No
+            | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Yes,
+        )
+        if choice == QMessageBox.StandardButton.Cancel:
+            return
+        visible_only = choice == QMessageBox.StandardButton.Yes
+
+        nodes = self.tree_panel.collect_nodes(visible_only=visible_only)
+        if not nodes:
+            QMessageBox.information(self, "Export", "Nothing to export with current view.")
+            return
+
+        try:
+            self._write_export_file(Path(filename), fmt, nodes)
+        except OSError as exc:
+            QMessageBox.critical(self, "Export failed", str(exc))
+            return
+
+        self._last_export_format = fmt
+        self._settings_store.save_export_format(fmt)
+        scope_text = "visible rows" if visible_only else "all matches"
+        self.status_bar.set_message(f"Exported {len(nodes)} item(s) ({scope_text}).")
+
+    def _determine_export_format(self, filename: str, selected_filter: str) -> str | None:
+        ext = Path(filename).suffix.lower()
+        mapping = {
+            ".txt": "lines",
+            ".log": "lines",
+            ".csv": "csv",
+            ".json": "json",
+            ".jsonl": "jsonl",
+        }
+        fmt = mapping.get(ext)
+        if fmt:
+            return fmt
+        if "jsonl" in selected_filter.lower():
+            return "jsonl"
+        if "json" in selected_filter.lower():
+            return "json"
+        if "csv" in selected_filter.lower():
+            return "csv"
+        if "text" in selected_filter.lower():
+            return "lines"
+        return None
+
+    def _write_export_file(self, filepath: Path, fmt: str, nodes: Iterable[PathNode]) -> None:
+        if fmt == "lines":
+            text = "\n".join(str(node.abs_path) for node in nodes) + "\n"
+            filepath.write_text(text, encoding="utf-8")
+            return
+
+        if fmt == "csv":
+            with filepath.open("w", newline="", encoding="utf-8") as handle:
+                writer = csv.writer(handle)
+                writer.writerow(["path", "type", "size", "mtime", "first_rule", "all_rules"])
+                for node in nodes:
+                    first_rule, all_rules = self._rule_labels(node)
+                    writer.writerow(
+                        [
+                            str(node.abs_path),
+                            node.type,
+                            node.size if node.size is not None else "",
+                            self._format_mtime(node.mtime),
+                            first_rule or "",
+                            "; ".join(all_rules),
+                        ]
+                    )
+            return
+
+        if fmt == "json":
+            data = [self._node_payload(node) for node in nodes]
+            filepath.write_text(json.dumps(data, indent=2), encoding="utf-8")
+            return
+
+        if fmt == "jsonl":
+            with filepath.open("w", encoding="utf-8") as handle:
+                for node in nodes:
+                    handle.write(json.dumps(self._node_payload(node)) + "\n")
+            return
+
+        raise ValueError(f"Unsupported export format: {fmt}")
+
+    def _node_payload(self, node: PathNode) -> dict[str, object]:
+        first_rule, all_rules = self._rule_labels(node)
+        return {
+            "abs_path": str(node.abs_path),
+            "rel_path": node.rel_path,
+            "type": node.type,
+            "size": node.size,
+            "mtime": self._format_mtime(node.mtime),
+            "first_rule": first_rule,
+            "all_rules": all_rules,
+            "tags": list(node.tags),
+        }
+
+    def _rule_labels(self, node: PathNode) -> tuple[str | None, list[str]]:
+        first: str | None = None
+        labels: list[str] = []
+        rules = self.rules_panel.rules
+
+        def rule_label(rule_index: int) -> str | None:
+            if 0 <= rule_index < len(rules):
+                rule = rules[rule_index]
+                return rule.label or rule.pattern
+            return None
+
+        if node.rule_index is not None:
+            first = rule_label(node.rule_index)
+        for idx in node.rule_ids:
+            label = rule_label(idx)
+            if label and label not in labels:
+                labels.append(label)
+        if first and first not in labels:
+            labels.insert(0, first)
+        return first, labels
+
+    # ------------------------------------------------------------------
     # Shared helpers
 
     def _set_controls_enabled(self, enabled: bool) -> None:
@@ -319,6 +489,8 @@ class MainWindow(QMainWindow):
     def _update_action_states(self) -> None:
         has_selection = bool(self.tree_panel.selected_nodes())
         self.delete_action.setEnabled(self._controls_enabled and has_selection)
+        has_data = bool(self._last_scan_nodes)
+        self.export_action.setEnabled(self._controls_enabled and has_data)
 
     @staticmethod
     def _format_size(num_bytes: int) -> str:
@@ -328,3 +500,9 @@ class MainWindow(QMainWindow):
                 return f"{value:.1f} {unit}"
             value /= 1024
         return f"{value:.1f} PB"
+
+    @staticmethod
+    def _format_mtime(timestamp: float | None) -> str | None:
+        if timestamp is None:
+            return None
+        return datetime.fromtimestamp(timestamp).isoformat(timespec="seconds")
