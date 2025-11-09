@@ -39,7 +39,15 @@ class PathNode:
 class PathTreeModel(QStandardItemModel):
     """Qt model representing a tree of `PathNode` objects."""
 
-    HEADERS: ClassVar[list[str]] = ["Name", "Type", "Size", "Modified", "Rule", "Full Path"]
+    HEADERS: ClassVar[list[str]] = [
+        "Name",
+        "Type",
+        "Size",
+        "Modified",
+        "First Rule",
+        "All Rules",
+        "Full Path",
+    ]
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -89,12 +97,13 @@ class PathTreeModel(QStandardItemModel):
         size_item = QStandardItem(self._format_size(node.size))
         mtime_item = QStandardItem(self._format_mtime(node.mtime))
         rule_item = QStandardItem(self._rule_label(node.rule_index))
+        all_rules_item = QStandardItem(self._all_rule_labels(node.rule_ids))
         path_str = str(node.abs_path)
         if node.type == "dir" and not path_str.endswith("/"):
             path_str += "/"
         path_item = QStandardItem(path_str)
 
-        return [name_item, type_item, size_item, mtime_item, rule_item, path_item]
+        return [name_item, type_item, size_item, mtime_item, rule_item, all_rules_item, path_item]
 
     def _rule_label(self, index: int | None) -> str:
         """Resolve a rule index into a user-facing label."""
@@ -102,6 +111,16 @@ class PathTreeModel(QStandardItemModel):
             return ""
         rule = self._rules[index]
         return rule.label or rule.pattern
+
+    def _all_rule_labels(self, indexes: list[int]) -> str:
+        labels: list[str] = []
+        seen: set[str] = set()
+        for index in indexes:
+            label = self._rule_label(index)
+            if label and label not in seen:
+                labels.append(label)
+                seen.add(label)
+        return ", ".join(labels)
 
     @staticmethod
     def _format_size(size: int | None) -> str:
