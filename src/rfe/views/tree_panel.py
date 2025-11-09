@@ -173,12 +173,14 @@ class TreePanel(QWidget):
         if payload is None:
             self._highlight_rule_index = None
             self._model.highlight_rule(None, None)
+            self._update_summary()
             return
 
         index, color_hex = payload if isinstance(payload, tuple) else (None, None)
         if not isinstance(index, int):
             self._highlight_rule_index = None
             self._model.highlight_rule(None, None)
+            self._update_summary()
             return
 
         color = QColor(color_hex) if isinstance(color_hex, str) else QColor()
@@ -186,6 +188,7 @@ class TreePanel(QWidget):
             color = QColor("#FFF59D")  # soft highlight fallback
         self._highlight_rule_index = index
         self._model.highlight_rule(index, color)
+        self._update_summary()
 
     def selected_paths(self) -> list[Path]:
         """Return absolute paths for the current selection."""
@@ -264,7 +267,24 @@ class TreePanel(QWidget):
         files = sum(1 for node in nodes if node.type == "file")
         dirs = sum(1 for node in nodes if node.type == "dir")
         total = len(nodes)
-        self._summary_label.setText(f"Files: {files}   Folders: {dirs}   Total: {total}")
+        parts = [f"Files: {files}", f"Folders: {dirs}", f"Total: {total}"]
+
+        if self._highlight_rule_index is not None:
+            highlight_files = 0
+            highlight_dirs = 0
+            index = self._highlight_rule_index
+            for node in nodes:
+                if node.rule_index == index or index in node.rule_ids:
+                    if node.type == "file":
+                        highlight_files += 1
+                    else:
+                        highlight_dirs += 1
+            highlight_total = highlight_files + highlight_dirs
+            parts.append(
+                f"Highlighted: {highlight_total} ({highlight_files} files, {highlight_dirs} folders)"
+            )
+
+        self._summary_label.setText("   ".join(parts))
 
     def _build_regex(
         self,
