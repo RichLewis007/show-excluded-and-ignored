@@ -233,11 +233,9 @@ class TreePanel(QWidget):
             placeholder = menu.addAction("Can't delete folders")
             placeholder.setEnabled(False)
 
-        delete_action = menu.addAction("Delete..")
         if nodes and all(node.type == "file" for node in nodes):
+            delete_action = menu.addAction("Delete..")
             delete_action.triggered.connect(lambda _checked=False: self.deleteRequested.emit())
-        else:
-            delete_action.setEnabled(False)
 
         menu.exec(self._tree.viewport().mapToGlobal(point))
 
