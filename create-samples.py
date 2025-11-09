@@ -61,7 +61,35 @@ def create_samples(destination: Path, *, force: bool) -> Path:
             child.rename(target)
         shutil.rmtree(nested)
 
+    _ensure_additional_examples(destination)
+
     return destination
+
+
+def _ensure_additional_examples(destination: Path) -> None:
+    """Create sample entries not covered by the fixture helper."""
+    extras = {
+        ".VolumeIcon.icns": "file",
+        ".com.apple.timemachine.donotpresent": "file",
+        "document.~lock.test#": "file",
+        "._Icon1": "file",
+    }
+    extra_dirs = [".cocoapods"]
+
+    obsolete = destination / "~lock.test#"
+    if obsolete.exists():
+        obsolete.unlink()
+
+    for rel, kind in extras.items():
+        path = destination / rel
+        if path.exists():
+            continue
+        if kind == "file":
+            path.touch()
+
+    for rel in extra_dirs:
+        path = destination / rel
+        path.mkdir(exist_ok=True)
 
 
 def main() -> int:

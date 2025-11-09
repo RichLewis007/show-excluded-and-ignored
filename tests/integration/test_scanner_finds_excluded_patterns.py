@@ -30,7 +30,10 @@ def fixture_patterns_dir(tmp_path: Path) -> Path:
     (root / ".Trashes").mkdir()
     (root / "Backups.backupdb").mkdir()
     (root / ".DocumentRevisions-V100").mkdir()
+    (root / ".VolumeIcon.icns").touch()
+    (root / ".com.apple.timemachine.donotpresent").touch()
     (root / "Icon1").touch()
+    (root / "._Icon1").touch()
 
     # Windows system files
     (root / "Desktop.ini").touch()
@@ -46,7 +49,7 @@ def fixture_patterns_dir(tmp_path: Path) -> Path:
     # Temporary files
     (root / "temp.tmp").touch()
     (root / "backup.bak").touch()
-    (root / "~lock.test#").touch()
+    (root / "document.~lock.test#").touch()
     (root / "~$doc.docx").touch()
     (root / "download.part").touch()
     (root / "chrome.crdownload").touch()
@@ -62,6 +65,7 @@ def fixture_patterns_dir(tmp_path: Path) -> Path:
     (root / "build").mkdir()
     (root / "coverage").mkdir()
     (root / "project.egg-info").mkdir()
+    (root / ".cocoapods").mkdir()
     (root / "compiled.pyo").touch()
 
     return root
@@ -82,6 +86,7 @@ def test_match_engine_flags_patterns(patterns_dir: Path) -> None:
     expected_patterns = [
         ".DS_Store",
         ".AppleDouble",
+        ".VolumeIcon.icns",
         ".localized",
         ".LSOverride",
         ".TemporaryItems/temp.txt",
@@ -91,6 +96,7 @@ def test_match_engine_flags_patterns(patterns_dir: Path) -> None:
         "Backups.backupdb",
         ".DocumentRevisions-V100",
         "Icon1",
+        "._Icon1",
         "Desktop.ini",
         "lowercase/desktop.ini",
         "ehthumbs.db",
@@ -99,7 +105,7 @@ def test_match_engine_flags_patterns(patterns_dir: Path) -> None:
         ".picasa.ini",
         "temp.tmp",
         "backup.bak",
-        "~lock.test#",
+        "document.~lock.test#",
         "~$doc.docx",
         "download.part",
         "chrome.crdownload",
@@ -109,6 +115,7 @@ def test_match_engine_flags_patterns(patterns_dir: Path) -> None:
         "__pycache__",
         "node_modules",
         ".cache",
+        ".cocoapods",
         "dist",
         "build",
         "coverage",
