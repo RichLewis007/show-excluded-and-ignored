@@ -257,6 +257,11 @@ class MainWindow(QMainWindow):
 
         nodes = self.tree_panel.selected_nodes()
         if not nodes:
+            QMessageBox.information(
+                self,
+                "Delete",
+                "Select one or more files to delete.",
+            )
             return
 
         count = len(nodes)
@@ -287,7 +292,10 @@ class MainWindow(QMainWindow):
     def _start_delete(self, nodes: list[PathNode]) -> None:
         """Start the background delete worker for the given nodes."""
         self._cancel_active_delete(wait=True)
-        paths = [node.abs_path for node in nodes]
+        paths = [node.abs_path for node in nodes if node.type == "file"]
+        if not paths:
+            self.status_bar.set_message("No files selected for deletion.")
+            return
         self.status_bar.set_message("Deleting selected items…")
         self._set_controls_enabled(False)
         self._delete_errors = []

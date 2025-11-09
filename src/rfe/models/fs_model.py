@@ -62,7 +62,7 @@ class PathTreeModel(QStandardItemModel):
         prefix: str,
     ) -> None:
         """Append a node to the model, skipping ones that lack matches."""
-        is_match = bool(node.rule_ids) or node.rule_index is not None
+        is_match = (bool(node.rule_ids) or node.rule_index is not None) and node.type == "file"
         segment = node.name
         display_name = f"{prefix}/{segment}" if prefix else segment
 

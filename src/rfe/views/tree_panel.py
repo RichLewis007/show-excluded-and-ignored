@@ -144,13 +144,16 @@ class TreePanel(QWidget):
         nodes: list[PathNode] = []
         for index in self._tree.selectionModel().selectedRows():
             node = index.data(Qt.ItemDataRole.UserRole)
-            if isinstance(node, PathNode):
+            if isinstance(node, PathNode) and node.type == "file":
                 nodes.append(node)
         return nodes
 
     def _show_context_menu(self, point: QPoint) -> None:
         """Display a context menu with destructive actions."""
-        if not self.selected_nodes():
+        nodes = self.selected_nodes()
+        if not nodes:
+            return
+        if any(node.type != "file" for node in nodes):
             return
         menu = QMenu(self)
         delete_action = menu.addAction("Delete…")

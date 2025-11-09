@@ -28,7 +28,7 @@ class DeleteWorker(QObject):
 
     def __init__(self, paths: Iterable[Path]) -> None:
         super().__init__()
-        self._paths = list(paths)
+        self._paths = [path for path in paths if path.is_file()]
 
     def start(self) -> None:
         """Delete each requested path, emitting progress and errors."""
