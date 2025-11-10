@@ -35,7 +35,7 @@ from .workers.scan_worker import ScanPayload, ScanWorker
 
 logger = logging.getLogger(__name__)
 
-ICON_ROOT = Path(__file__).resolve().parents[1] / "resources" / "icons" / "feather"
+ICON_ROOT = Path(__file__).resolve().parent / "resources" / "icons" / "feather"
 
 
 def _icon(name: str) -> QIcon:
