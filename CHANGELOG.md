@@ -30,9 +30,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Clearing the search field immediately re-runs the filter so visible results reset without extra clicks.
 - Modal scanning dialog mirrors footer progress (long-path friendly), now owns the Scan / Pause / Cancel controls, and stays larger to accommodate long paths.
 - macOS builds now show “Ghost Files Finder” as the app name and use a bundled window icon.
-- Toolbar now presents icon-only buttons for scan, source root, rules file, delete, export, and quit actions using bundled Feather SVGs.
+- Toolbar now presents icon buttons with text labels for scan, source root, rules file, delete, export, and quit actions using bundled Feather SVGs.
 - Added helper script `scripts/copy_feather_icons.sh` to sync Feather SVG assets into the project resources.
 - Added PyInstaller configuration (`ghost_files_finder.spec`) and helper script to produce distributable builds.
+- Selecting a source folder or rules file no longer triggers an automatic scan; the Scan button activates once both selections are made.
+- Scan progress dialog now mirrors the main badge image and formats large numbers with thousands separators.
 
 ### Changed
 

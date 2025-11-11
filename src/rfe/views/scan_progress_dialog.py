@@ -4,14 +4,17 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QDialog,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QPushButton,
-    QVBoxLayout,
     QWidget,
 )
+
+ICON_PATH = Path(__file__).resolve().parents[2] / "assets" / "in-app-ghost-pic.png"
 
 
 class ScanProgressDialog(QDialog):
@@ -34,8 +37,19 @@ class ScanProgressDialog(QDialog):
         self._path_label = QLabel("", self)
         self._path_label.setWordWrap(True)
         self._path_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        self._path_label.setMinimumWidth(680)
         self._path_label.setMinimumHeight(48)
+
+        self._badge_label = QLabel(self)
+        self._badge_label.setVisible(False)
+        if ICON_PATH.exists():
+            pixmap = QPixmap(str(ICON_PATH))
+            if not pixmap.isNull():
+                scaled = pixmap.scaledToHeight(64, Qt.TransformationMode.SmoothTransformation)
+                self._badge_label.setPixmap(scaled)
+                self._badge_label.setAlignment(
+                    Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop
+                )
+                self._badge_label.setVisible(True)
 
         button_layout = QHBoxLayout()
         button_layout.setSpacing(10)
@@ -51,14 +65,18 @@ class ScanProgressDialog(QDialog):
         self._cancel_button.clicked.connect(self.cancelRequested.emit)
         button_layout.addWidget(self._cancel_button)
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(12)
-        layout.addWidget(self._summary_label)
-        layout.addWidget(self._path_label)
-        layout.addLayout(button_layout)
+        main_layout = QGridLayout(self)
+        main_layout.setContentsMargins(16, 16, 16, 16)
+        main_layout.setHorizontalSpacing(16)
+        main_layout.setVerticalSpacing(12)
+        main_layout.addWidget(self._summary_label, 0, 0)
+        main_layout.addWidget(
+            self._badge_label, 0, 1, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop
+        )
+        main_layout.addWidget(self._path_label, 1, 0, 1, 2)
+        main_layout.addLayout(button_layout, 2, 0, 1, 2)
 
-        self.setLayout(layout)
+        self.setLayout(main_layout)
         self.set_running(False)
 
     # ------------------------------------------------------------------
@@ -78,7 +96,7 @@ class ScanProgressDialog(QDialog):
 
     def update_progress(self, scanned: int, matched: int, current_path: str) -> None:
         # Update the progress details shown in the dialog.
-        self._summary_label.setText(f"Scanning… {matched} matches / {scanned} items")
+        self._summary_label.setText(f"Scanning… {matched:,} matches / {scanned:,} items")
         if current_path:
             self._path_label.setText(current_path)
         else:

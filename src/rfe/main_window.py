@@ -9,7 +9,7 @@ from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QThread
+from PySide6.QtCore import QSize, Qt, QThread
 from PySide6.QtGui import QAction, QCloseEvent, QIcon
 from PySide6.QtWidgets import (
     QDockWidget,
@@ -76,6 +76,8 @@ class MainWindow(QMainWindow):
         self._scan_running = False
         self._pause_requested = False
         self._progress_dialog: ScanProgressDialog | None = None
+        self._root_selected = False
+        self._rules_selected = False
 
         self.setWindowTitle("Ghost Files Finder")
         self.resize(1200, 800)
@@ -115,14 +117,9 @@ class MainWindow(QMainWindow):
         # Build the window toolbar and key QAction objects.
         toolbar = QToolBar("Main actions", self)
         toolbar.setMovable(False)
-        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+        toolbar.setIconSize(QSize(28, 28))
         self.addToolBar(toolbar)
-
-        self.scan_action = QAction("Scan", self)
-        self.scan_action.triggered.connect(self._start_scan)
-        self.scan_action.setIcon(_icon("play"))
-        self.scan_action.setToolTip("Start scanning")
-        toolbar.addAction(self.scan_action)
 
         self.select_root_action = QAction("Source folder..", self)
         self.select_root_action.triggered.connect(self._prompt_select_root)
@@ -136,12 +133,18 @@ class MainWindow(QMainWindow):
         self.open_action.setToolTip("Open rules file")
         toolbar.addAction(self.open_action)
 
-        self.delete_action = QAction("Delete..", self)
-        self.delete_action.setEnabled(False)
-        self.delete_action.triggered.connect(self._prompt_delete_selection)
-        self.delete_action.setIcon(_icon("trash-2"))
-        self.delete_action.setToolTip("Delete selected files")
-        toolbar.addAction(self.delete_action)
+        self.scan_action = QAction("Scan", self)
+        self.scan_action.triggered.connect(self._start_scan)
+        self.scan_action.setIcon(_icon("play"))
+        self.scan_action.setToolTip("Start scanning")
+        toolbar.addAction(self.scan_action)
+
+        # self.delete_action = QAction("Delete..", self)
+        # self.delete_action.setEnabled(False)
+        # self.delete_action.triggered.connect(self._prompt_delete_selection)
+        # self.delete_action.setIcon(_icon("trash-2"))
+        # self.delete_action.setToolTip("Delete selected files")
+        # toolbar.addAction(self.delete_action)
 
         self.export_action = QAction("Export results..", self)
         self.export_action.setEnabled(False)
@@ -150,9 +153,11 @@ class MainWindow(QMainWindow):
         self.export_action.setToolTip("Export visible results")
         toolbar.addAction(self.export_action)
 
+        toolbar.addSeparator()
+
         self.quit_action = QAction("Quit", self)
         self.quit_action.triggered.connect(self._prompt_exit)
-        self.quit_action.setIcon(_icon("x-circle"))
+        self.quit_action.setIcon(_icon("log-out"))
         self.quit_action.setToolTip("Quit Ghost Files Finder")
         toolbar.addAction(self.quit_action)
 
@@ -199,6 +204,11 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event: QCloseEvent) -> None:
         # Persist state and ensure background work stops before closing.
+        if not (self._root_selected and self._rules_selected):
+            self.status_bar.set_message("Select a source folder and rules file before scanning.")
+            self._set_scan_running(False)
+            return
+
         self._cancel_active_scan(wait=True)
         self._cancel_active_delete(wait=True)
         self._settings_store.save_window_geometry(self.saveGeometry())
@@ -300,7 +310,7 @@ class MainWindow(QMainWindow):
 
     def _on_scan_progress(self, scanned: int, matched: int, current_path: str) -> None:
         # Update progress feedback while scanning.
-        parts = [f"Scanning… {matched} matches / {scanned} items"]
+        parts = [f"Scanning… {matched:,} matches / {scanned:,} items"]
         if current_path and current_path not in {"", "done"}:
             parts.append(current_path)
         self.status_bar.set_message(" — ".join(parts))
@@ -313,8 +323,8 @@ class MainWindow(QMainWindow):
         duration = payload.stats.duration
         duration_text = f"{duration:.2f}s" if duration is not None else "n/a"
         self.status_bar.set_message(
-            f"Scan complete: {payload.stats.matched} matches across "
-            f"{payload.stats.scanned} items in {duration_text}",
+            f"Scan complete: {payload.stats.matched:,} matches across "
+            f"{payload.stats.scanned:,} items in {duration_text}",
         )
         self.status_bar.set_progress(None)
         self._set_controls_enabled(True)
@@ -424,7 +434,8 @@ class MainWindow(QMainWindow):
         self._filter_file = path
         self.rules_panel.load_rules_from_path(path)
         self.status_bar.set_message(f"Loaded filter rules from {path}")
-        self._start_scan()
+        self._rules_selected = True
+        self._update_action_states()
 
     def _prompt_select_root(self) -> None:
         # Allow the user to choose a new root directory to scan.
@@ -449,7 +460,8 @@ class MainWindow(QMainWindow):
         self._root_path = path
         self.tree_panel.set_root_path(path)
         self.status_bar.set_message(f"Root path set to {path}")
-        self._start_scan()
+        self._root_selected = True
+        self._update_action_states()
 
     def _prompt_exit(self) -> None:
         # Confirm with the user before quitting the application.
@@ -750,7 +762,8 @@ class MainWindow(QMainWindow):
     def _set_scan_running(self, running: bool) -> None:
         self._scan_running = running
         if hasattr(self, "scan_action"):
-            self.scan_action.setEnabled(not running and bool(self.rules_panel.rules))
+            ready = self._root_selected and self._rules_selected and self._controls_enabled
+            self.scan_action.setEnabled(ready and not running)
 
     def _pause_scan(self) -> None:
         if not self._scan_running:
@@ -773,7 +786,8 @@ class MainWindow(QMainWindow):
     def _update_action_states(self) -> None:
         # Ensure toolbar actions reflect current selection and data.
         has_selection = bool(self.tree_panel.selected_nodes())
-        self.delete_action.setEnabled(self._controls_enabled and has_selection)
+        if hasattr(self, "delete_action"):
+            self.delete_action.setEnabled(self._controls_enabled and has_selection)
         has_data = bool(self._last_scan_nodes)
         self.export_action.setEnabled(self._controls_enabled and has_data)
         self._set_scan_running(self._scan_running)
