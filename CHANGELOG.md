@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added PyInstaller configuration (`ghost_files_finder.spec`) and helper script to produce distributable builds.
 - Selecting a source folder or rules file no longer triggers an automatic scan; the Scan button activates once both selections are made.
 - Scan progress dialog now mirrors the main badge image, switches to a “scan complete” badge when finished, uses Feather play/pause/close icons, formats large numbers with thousand separators, and stays open until closed by the user.
+- Introduced a QtMultimedia-backed sound manager with bundled tones to provide pleasant audio feedback for toolbar and scan dialog buttons.
 
 ### Changed
 

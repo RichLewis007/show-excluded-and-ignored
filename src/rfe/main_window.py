@@ -5,7 +5,7 @@ import csv
 import json
 import logging
 import re
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from datetime import datetime
 from pathlib import Path
 
@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 from .models.fs_model import PathNode
 from .models.rules_model import parse_filter_file
 from .services.config import SettingsStore
+from .services.sounds import SoundManager, build_default_sound_manager
 from .views.rules_panel import RulesPanel
 from .views.scan_progress_dialog import ScanProgressDialog
 from .views.search_bar import SearchBar
@@ -74,6 +75,7 @@ class MainWindow(QMainWindow):
         self._delete_thread: QThread | None = None
         self._delete_worker: DeleteWorker | None = None
         self._delete_errors: list[str] = []
+        self._sound_manager: SoundManager = build_default_sound_manager(self)
         self._controls_enabled = True
         self._last_scan_nodes: list[PathNode] = []
         self._last_export_format = self._settings_store.load_export_format()
@@ -126,19 +128,23 @@ class MainWindow(QMainWindow):
         self.addToolBar(toolbar)
 
         self.select_root_action = QAction("Source folder..", self)
-        self.select_root_action.triggered.connect(self._prompt_select_root)
+        self.select_root_action.triggered.connect(
+            self._wrap_with_click_sound(self._prompt_select_root)
+        )
         self.select_root_action.setIcon(_icon("folder"))
         self.select_root_action.setToolTip("Choose source folder")
         toolbar.addAction(self.select_root_action)
 
         self.open_action = QAction("Rules file..", self)
-        self.open_action.triggered.connect(self._prompt_open_filter_file)
+        self.open_action.triggered.connect(
+            self._wrap_with_click_sound(self._prompt_open_filter_file)
+        )
         self.open_action.setIcon(_icon("file-text"))
         self.open_action.setToolTip("Open rules file")
         toolbar.addAction(self.open_action)
 
         self.scan_action = QAction("Scan", self)
-        self.scan_action.triggered.connect(self._start_scan)
+        self.scan_action.triggered.connect(self._wrap_with_click_sound(self._start_scan))
         self.scan_action.setIcon(_icon("play"))
         self.scan_action.setToolTip("Start scanning")
         toolbar.addAction(self.scan_action)
@@ -152,7 +158,7 @@ class MainWindow(QMainWindow):
 
         self.export_action = QAction("Export results..", self)
         self.export_action.setEnabled(False)
-        self.export_action.triggered.connect(self._prompt_export)
+        self.export_action.triggered.connect(self._wrap_with_click_sound(self._prompt_export))
         self.export_action.setIcon(_icon("download"))
         self.export_action.setToolTip("Export visible results")
         toolbar.addAction(self.export_action)
@@ -160,7 +166,9 @@ class MainWindow(QMainWindow):
         toolbar.addSeparator()
 
         self.quit_action = QAction("Quit", self)
-        self.quit_action.triggered.connect(self._prompt_exit)
+        self.quit_action.triggered.connect(
+            self._wrap_with_click_sound(self._prompt_exit, sound="secondary")
+        )
         self.quit_action.setIcon(_icon("log-out"))
         self.quit_action.setToolTip("Quit Ghost Files Finder")
         toolbar.addAction(self.quit_action)
@@ -235,7 +243,7 @@ class MainWindow(QMainWindow):
     def _get_progress_dialog(self) -> ScanProgressDialog:
         # Lazily create the scan progress dialog.
         if self._progress_dialog is None:
-            dialog = ScanProgressDialog(self)
+            dialog = ScanProgressDialog(self, play_sound=self._sound_manager.play)
             dialog.scanRequested.connect(self._on_dialog_scan_requested)
             dialog.pauseRequested.connect(self._pause_scan)
             dialog.cancelRequested.connect(self._cancel_scan)
@@ -388,6 +396,7 @@ class MainWindow(QMainWindow):
         # Start a scan when requested via the progress dialog.
         if self._scan_running:
             return
+        self._sound_manager.play("primary")
         self._start_scan()
 
     # ------------------------------------------------------------------
@@ -789,9 +798,23 @@ class MainWindow(QMainWindow):
             ready = self._root_selected and self._rules_selected and self._controls_enabled
             self.scan_action.setEnabled(ready and not running)
 
+    def _wrap_with_click_sound(
+        self,
+        handler: Callable[[], None],
+        *,
+        sound: str = "primary",
+    ) -> Callable[[bool], None]:
+        def wrapped(checked: bool = False) -> None:
+            del checked
+            self._sound_manager.play(sound)
+            handler()
+
+        return wrapped
+
     def _pause_scan(self) -> None:
         if not self._scan_running:
             return
+        self._sound_manager.play("secondary")
         self._pause_requested = True
         self.status_bar.set_message("Scan paused.")
         self._cancel_active_scan(wait=True)
@@ -801,8 +824,10 @@ class MainWindow(QMainWindow):
     def _cancel_scan(self) -> None:
         if not self._scan_running:
             if self._progress_dialog is not None:
+                self._sound_manager.play("secondary")
                 self._progress_dialog.hide()
             return
+        self._sound_manager.play("secondary")
         self._pause_requested = False
         self.status_bar.set_message("Scan cancelled.")
         self.status_bar.set_progress(None)

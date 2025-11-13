@@ -1,6 +1,7 @@
 # Scan progress dialog.
 from __future__ import annotations
 
+from collections.abc import Callable
 from html import escape
 from pathlib import Path
 
@@ -31,12 +32,18 @@ class ScanProgressDialog(QDialog):
     pauseRequested = Signal()
     cancelRequested = Signal()
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        *,
+        play_sound: Callable[[str], None] | None = None,
+    ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Scanning…")
         self.setWindowModality(Qt.WindowModality.ApplicationModal)
         self.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, False)
         self.resize(900, 300)
+        self._play_sound = play_sound
 
         self._summary_label = QLabel("Scanning..", self)
         self._summary_label.setWordWrap(True)
@@ -137,19 +144,19 @@ class ScanProgressDialog(QDialog):
         self._scan_button = QPushButton("Scan", self)
         self._scan_button.setIcon(self._load_icon("play"))
         self._scan_button.setIconSize(QSize(28, 28))
-        self._scan_button.clicked.connect(self.scanRequested.emit)
+        self._scan_button.clicked.connect(self._on_scan_clicked)
         button_layout.addWidget(self._scan_button)
 
         self._pause_button = QPushButton("Pause", self)
         self._pause_button.setIcon(self._load_icon("pause"))
         self._pause_button.setIconSize(QSize(28, 28))
-        self._pause_button.clicked.connect(self.pauseRequested.emit)
+        self._pause_button.clicked.connect(self._on_pause_clicked)
         button_layout.addWidget(self._pause_button)
 
         self._cancel_button = QPushButton("Cancel", self)
         self._cancel_button.setIcon(self._load_icon("x-circle"))
         self._cancel_button.setIconSize(QSize(28, 28))
-        self._cancel_button.clicked.connect(self.cancelRequested.emit)
+        self._cancel_button.clicked.connect(self._on_cancel_clicked)
         button_layout.addWidget(self._cancel_button)
 
         source_line = QHBoxLayout()
@@ -295,3 +302,19 @@ class ScanProgressDialog(QDialog):
         self._badge_label.setPixmap(scaled)
         self._badge_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
         self._badge_label.setVisible(True)
+
+    def _trigger_sound(self, sound_id: str) -> None:
+        if self._play_sound is not None:
+            self._play_sound(sound_id)
+
+    def _on_scan_clicked(self) -> None:
+        self._trigger_sound("primary")
+        self.scanRequested.emit()
+
+    def _on_pause_clicked(self) -> None:
+        self._trigger_sound("secondary")
+        self.pauseRequested.emit()
+
+    def _on_cancel_clicked(self) -> None:
+        self._trigger_sound("secondary")
+        self.cancelRequested.emit()

@@ -11,6 +11,7 @@ package_root = src_dir / "rfe"
 icon_dir = package_root / "resources" / "icons"
 feather_dir = icon_dir / "feather"
 app_icon = icon_dir / "GhostFilesFinder.icns"
+audio_dir = package_root / "resources" / "audio"
 rules_file = project_dir / "tests" / "data" / "rclone-filter-list.txt"
 
 pyside6_datas = collect_data_files("PySide6")
@@ -18,6 +19,7 @@ pyside6_datas = collect_data_files("PySide6")
 extra_datas = [
     (str(feather_dir), "rfe/resources/icons/feather"),
     (str(app_icon), "rfe/resources/icons"),
+    (str(audio_dir), "rfe/resources/audio"),
     (str(rules_file), "tests/data"),
 ]
 

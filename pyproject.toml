@@ -34,6 +34,14 @@ gff-cli = "rfe.cli:main"
 package = true
 required-environments = ["platform_system == 'Darwin' and platform_machine == 'x86_64'"]
 
+[tool.setuptools.package-data]
+"rfe" = [
+  "resources/icons/*.icns",
+  "resources/icons/feather/*.svg",
+  "resources/audio/*.wav",
+  "resources/*.png",
+]
+
 [tool.ruff]
 target-version = "py311"
 line-length = 100
