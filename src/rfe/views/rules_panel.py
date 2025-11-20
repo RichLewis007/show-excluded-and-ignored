@@ -1,4 +1,8 @@
-# Sidebar for rule management.
+# Filename: rules_panel.py
+# Author: Rich Lewis @RichLewis007
+# Description: Sidebar panel for rule management. Displays filter rules with checkboxes,
+#              allows rule selection for filtering results, and highlights selected rules.
+
 from __future__ import annotations
 
 import itertools

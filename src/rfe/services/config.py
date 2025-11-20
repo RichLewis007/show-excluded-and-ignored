@@ -1,4 +1,8 @@
-# Configuration helpers.
+# Filename: config.py
+# Author: Rich Lewis @RichLewis007
+# Description: Configuration helpers for persistent application settings. Wraps Qt QSettings
+#              for storing window geometry, last-used paths, and user preferences.
+
 from __future__ import annotations
 
 from collections.abc import Iterable
@@ -18,6 +22,9 @@ _KEY_RECENT_ROOTS = "paths/recent_roots"
 _KEY_RECENT_FILTERS = "paths/recent_filters"
 _KEY_EXPORT_FORMAT = "export/default_format"
 _KEY_EXPORT_VISIBLE_ONLY = "export/visible_only"
+_KEY_DEBUG_LOG_LEVEL = "logging/debug_level"
+_KEY_UI_SOUNDS_ENABLED = "sounds/ui_enabled"
+_KEY_COMPLETION_SOUND_ENABLED = "sounds/completion_enabled"
 
 _RECENT_LIMIT = 5
 
@@ -149,4 +156,52 @@ class SettingsStore:
     def save_export_visible_only(self, visible_only: bool) -> None:
         # Persist the user's export scope preference.
         self._settings.setValue(_KEY_EXPORT_VISIBLE_ONLY, visible_only)
+        self._settings.sync()
+
+    # ------------------------------------------------------------------
+    # Sound preferences
+
+    def load_ui_sounds_enabled(self, default: bool = True) -> bool:
+        # Return whether UI sounds are enabled, defaulting to default.
+        value = self._settings.value(_KEY_UI_SOUNDS_ENABLED)
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.lower() in {"1", "true", "yes", "on"}
+        return default
+
+    def save_ui_sounds_enabled(self, enabled: bool) -> None:
+        # Persist the user's UI sounds preference.
+        self._settings.setValue(_KEY_UI_SOUNDS_ENABLED, enabled)
+        self._settings.sync()
+
+    def load_completion_sound_enabled(self, default: bool = True) -> bool:
+        # Return whether completion sound is enabled, defaulting to default.
+        value = self._settings.value(_KEY_COMPLETION_SOUND_ENABLED)
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.lower() in {"1", "true", "yes", "on"}
+        return default
+
+    def save_completion_sound_enabled(self, enabled: bool) -> None:
+        # Persist the user's completion sound preference.
+        self._settings.setValue(_KEY_COMPLETION_SOUND_ENABLED, enabled)
+        self._settings.sync()
+
+    # ------------------------------------------------------------------
+    # Logging preferences
+
+    def load_debug_log_level(self, default: bool = False) -> bool:
+        # Return whether debug log level is enabled, defaulting to default.
+        value = self._settings.value(_KEY_DEBUG_LOG_LEVEL)
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.lower() in {"1", "true", "yes", "on"}
+        return default
+
+    def save_debug_log_level(self, enabled: bool) -> None:
+        # Persist the user's debug log level preference.
+        self._settings.setValue(_KEY_DEBUG_LOG_LEVEL, enabled)
         self._settings.sync()

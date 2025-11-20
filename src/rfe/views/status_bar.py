@@ -1,4 +1,8 @@
-# Status bar widget.
+# Filename: status_bar.py
+# Author: Rich Lewis @RichLewis007
+# Description: Status bar widget displaying scan progress and statistics. Shows progress
+#              indicators, match counts, and status messages at the bottom of the main window.
+
 from __future__ import annotations
 
 from PySide6.QtWidgets import QLabel, QProgressBar, QStatusBar, QWidget

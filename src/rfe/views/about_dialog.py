@@ -1,4 +1,8 @@
-# About dialog for the application.
+# Filename: about_dialog.py
+# Author: Rich Lewis @RichLewis007
+# Description: About dialog displaying application information. Shows version, copyright,
+#              license information, and application metadata.
+
 from __future__ import annotations
 
 from pathlib import Path

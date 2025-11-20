@@ -1,3 +1,8 @@
+# Filename: app.py
+# Author: Rich Lewis @RichLewis007
+# Description: Application entry point for Ghost Files Finder. Handles application initialization,
+#              argument parsing, macOS process metadata setup, and QApplication creation.
+
 from __future__ import annotations
 
 import argparse
@@ -9,7 +14,6 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QGuiApplication, QIcon
 from PySide6.QtWidgets import QApplication
 
-# Application entry point for Ghost Files Finder.
 from .main_window import MainWindow
 from .services import config as config_service
 from .services import logger as logger_service

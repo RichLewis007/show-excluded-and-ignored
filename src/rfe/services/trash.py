@@ -1,4 +1,8 @@
-# Utilities for safely moving files to system trash.
+# Filename: trash.py
+# Author: Rich Lewis @RichLewis007
+# Description: Utilities for safely moving files to system trash. Wraps send2trash library
+#              with error handling and OS-specific trash operations.
+
 from __future__ import annotations
 
 from pathlib import Path

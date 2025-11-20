@@ -1,4 +1,8 @@
-# Filesystem tree data structures and Qt model.
+# Filename: fs_model.py
+# Author: Rich Lewis @RichLewis007
+# Description: Filesystem tree data structures and Qt model implementation. Defines PathNode
+#              data structure and PathTreeModel for displaying file system trees in the Qt tree view.
+
 from __future__ import annotations
 
 import logging

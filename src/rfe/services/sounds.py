@@ -1,3 +1,8 @@
+# Filename: sounds.py
+# Author: Rich Lewis @RichLewis007
+# Description: Sound manager for UI audio feedback. Manages playback of sound effects for
+#              user interactions using Qt Multimedia components.
+
 from __future__ import annotations
 
 from collections.abc import Mapping

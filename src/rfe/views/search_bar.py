@@ -1,4 +1,8 @@
-# Search bar widget.
+# Filename: search_bar.py
+# Author: Rich Lewis @RichLewis007
+# Description: Search bar widget for filtering results. Provides text, glob, and regex
+#              search modes with case-sensitivity toggle.
+
 from __future__ import annotations
 
 from pathlib import Path

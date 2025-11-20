@@ -1,4 +1,8 @@
-# Tree view displaying filesystem matches.
+# Filename: tree_panel.py
+# Author: Rich Lewis @RichLewis007
+# Description: Tree view panel displaying filesystem matches. Manages the results tree view,
+#              sorting, filtering, search functionality, and selection handling.
+
 from __future__ import annotations
 
 import fnmatch

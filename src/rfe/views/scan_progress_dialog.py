@@ -1,6 +1,7 @@
-# Scan progress dialog.
-# The structure is now:
-# Create widget → Configure widget → Create layout → Add widget to layout
+# Filename: scan_progress_dialog.py
+# Author: Rich Lewis @RichLewis007
+# Description: Scan progress dialog showing scanning status and statistics. Displays progress,
+#              file counts, size of matches, elapsed time, and provides pause/resume/cancel controls.
 
 from __future__ import annotations
 

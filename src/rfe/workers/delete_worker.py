@@ -1,4 +1,8 @@
-# Background worker for deleting paths via system trash.
+# Filename: delete_worker.py
+# Author: Rich Lewis @RichLewis007
+# Description: Background worker for deleting paths via system trash. Performs safe file
+#              deletion operations in a separate thread to avoid blocking the UI.
+
 from __future__ import annotations
 
 from collections.abc import Iterable

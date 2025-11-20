@@ -1,4 +1,8 @@
-# Logging configuration utilities.
+# Filename: logger.py
+# Author: Rich Lewis @RichLewis007
+# Description: Logging configuration utilities. Sets up rotating file and console handlers
+#              for application-wide logging with configurable log levels.
+
 from __future__ import annotations
 
 import logging

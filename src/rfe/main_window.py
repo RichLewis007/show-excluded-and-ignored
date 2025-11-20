@@ -1,4 +1,8 @@
-# Main window implementation.
+# Filename: main_window.py
+# Author: Rich Lewis @RichLewis007
+# Description: Main window implementation for Ghost Files Finder. Manages the primary application
+#              window, toolbar, menu bar, scan workflow, and coordinates all UI components.
+
 from __future__ import annotations
 
 import csv

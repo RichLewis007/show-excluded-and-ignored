@@ -1,4 +1,8 @@
-# Matching engine for rclone-style glob rules.
+# Filename: match_engine.py
+# Author: Rich Lewis @RichLewis007
+# Description: Matching engine for rclone-style glob rules. Implements pattern matching
+#              algorithms to match file paths against filter rules.
+
 from __future__ import annotations
 
 import os

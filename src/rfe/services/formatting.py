@@ -1,4 +1,7 @@
-"""Formatting helpers for user-facing values."""
+# Filename: formatting.py
+# Author: Rich Lewis @RichLewis007
+# Description: Formatting helpers for user-facing values. Provides functions to format
+#              file sizes, byte counts, and other numeric values for display in the UI.
 
 from __future__ import annotations
 

@@ -1,3 +1,8 @@
+# Filename: cli.py
+# Author: Rich Lewis @RichLewis007
+# Description: Command-line interface utilities for Ghost Files Finder. Provides CLI tools for
+#              inspecting rclone-style filter matches from the command line.
+
 from __future__ import annotations
 
 import argparse
@@ -5,8 +10,6 @@ from pathlib import Path
 
 from .models.match_engine import MatchEngine
 from .models.rules_model import parse_filter_file
-
-# Simple CLI utilities for Ghost Files Finder.
 
 
 def build_parser() -> argparse.ArgumentParser:

@@ -1,4 +1,8 @@
-# Background filesystem scanning worker.
+# Filename: scan_worker.py
+# Author: Rich Lewis @RichLewis007
+# Description: Background filesystem scanning worker. Performs filesystem traversal in a
+#              separate thread, matches paths against filter rules, and emits progress updates.
+
 from __future__ import annotations
 
 import os

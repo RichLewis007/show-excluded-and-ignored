@@ -1,4 +1,8 @@
-# Rule model utilities.
+# Filename: rules_model.py
+# Author: Rich Lewis @RichLewis007
+# Description: Rule model utilities for parsing and representing rclone-style filter rules.
+#              Defines the Rule data structure and parsing functions for filter files.
+
 from __future__ import annotations
 
 import re
