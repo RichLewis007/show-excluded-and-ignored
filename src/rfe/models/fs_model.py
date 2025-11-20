@@ -1,6 +1,7 @@
 # Filesystem tree data structures and Qt model.
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -9,10 +10,13 @@ from typing import ClassVar, Literal
 
 from PySide6.QtCore import QObject, Qt
 from PySide6.QtGui import QBrush, QColor, QStandardItem, QStandardItemModel
+from PySide6.QtWidgets import QApplication
 
 from rfe.services.formatting import format_bytes
 
 from .rules_model import Rule
+
+logger = logging.getLogger(__name__)
 
 NodeType = Literal["file", "dir"]
 
@@ -57,11 +61,44 @@ class PathTreeModel(QStandardItemModel):
 
     def load_nodes(self, nodes: Sequence[PathNode], rules: Sequence[Rule]) -> None:
         # Populate the model with a fresh tree.
+        # Process nodes in chunks to keep UI responsive with large datasets.
         self._rules = rules
         self.clear()
         self.setHorizontalHeaderLabels(self.HEADERS)
-        for node in nodes:
-            self._append_node(parent_item=None, node=node, prefix="")
+
+        total_nodes = len(nodes)
+        logger.info("Loading %d nodes into tree model", total_nodes)
+
+        # Process in chunks to keep UI responsive
+        chunk_size = 50  # Process 50 nodes at a time (reduced for better responsiveness)
+        processed = 0
+        total_children_processed = 0
+
+        for i, node in enumerate(nodes):
+            logger.debug("Processing node %d/%d: %s", i + 1, total_nodes, node.name)
+            child_counter = [0]  # Track children for this node
+            self._append_node(parent_item=None, node=node, prefix="", child_counter=child_counter)
+            total_children_processed += child_counter[0]
+            processed += 1
+
+            # Periodically process events to keep UI responsive
+            if processed % chunk_size == 0:
+                QApplication.processEvents()
+                logger.debug(
+                    "Processed %d/%d top-level nodes, %d total items",
+                    processed,
+                    total_nodes,
+                    total_children_processed,
+                )
+            elif processed % 10 == 0:
+                # Process events more frequently for better responsiveness
+                QApplication.processEvents()
+
+        logger.info(
+            "Finished loading %d top-level nodes (%d total items)",
+            processed,
+            total_children_processed,
+        )
 
     def _append_node(
         self,
@@ -69,8 +106,13 @@ class PathTreeModel(QStandardItemModel):
         parent_item: QStandardItem | None,
         node: PathNode,
         prefix: str,
+        child_counter: list[int] | None = None,
     ) -> None:
         # Append a node to the model.
+        # child_counter is a mutable list to track total children processed across recursion
+        if child_counter is None:
+            child_counter = [0]
+
         segment = node.name
         display_name = f"{prefix}/{segment}" if prefix else segment
 
@@ -81,8 +123,51 @@ class PathTreeModel(QStandardItemModel):
             parent_item.appendRow(row)
 
         name_item = row[0]
-        for child in node.children:
-            self._append_node(parent_item=name_item, node=child, prefix="")
+        child_count = len(node.children)
+        if child_count > 0:
+            # Log if a node has many children (potential performance issue)
+            if child_count > 500:
+                logger.debug(
+                    "Node %s has %d children - processing in chunks", display_name, child_count
+                )
+
+            # Process children in chunks to keep UI responsive
+            # Use smaller chunks for better responsiveness with large lists
+            chunk_size = 25 if child_count > 500 else (50 if child_count > 200 else 200)
+            for i, child in enumerate(node.children):
+                # Log if this child itself has many children (nested large structure)
+                if len(child.children) > 500:
+                    logger.debug(
+                        "  Child %d/%d (%s) has %d children - will process incrementally",
+                        i + 1,
+                        child_count,
+                        child.name,
+                        len(child.children),
+                    )
+
+                self._append_node(
+                    parent_item=name_item, node=child, prefix="", child_counter=child_counter
+                )
+                child_counter[0] += 1
+
+                # Process events more frequently for large child lists
+                # This is critical to prevent UI freezing with deeply nested structures
+                if child_count > 500:
+                    # Process events every chunk_size children
+                    if i > 0 and i % chunk_size == 0:
+                        QApplication.processEvents()
+                        logger.debug(
+                            "  Processed %d/%d children of %s", i, child_count, display_name
+                        )
+                    # Also process events after each child that has many children itself
+                    elif len(child.children) > 200:
+                        QApplication.processEvents()
+                elif child_count > 200:
+                    if i > 0 and i % 50 == 0:
+                        QApplication.processEvents()
+                elif i > 0 and i % 200 == 0:
+                    # Process events for smaller lists too, but less frequently
+                    QApplication.processEvents()
 
     def _create_row(self, node: PathNode, display_name: str) -> list[QStandardItem]:
         # Create a standard-item row for ``node``.

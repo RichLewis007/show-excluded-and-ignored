@@ -239,19 +239,58 @@ class TreePanel(QWidget):
 
     def load_nodes(self, nodes: Sequence[PathNode], rules: Sequence[Rule]) -> None:
         # Load a fresh tree of nodes into the view.
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        logger.debug("Starting load_nodes: %d nodes", len(nodes))
         self._model.load_nodes(nodes, rules)
+        logger.debug("Model loaded, updating tree view")
+
         self._current_nodes = list(nodes)
         self._rules = list(rules)
         self._tree.expandToDepth(0)
+        logger.debug("Tree expanded")
+
         header = self._tree.header()
         header.setStretchLastSection(True)
-        for column in range(self._model.columnCount()):
-            self._tree.resizeColumnToContents(column)
+
+        # resizeColumnToContents is very slow with large datasets - only resize visible columns
+        # or use a reasonable default width instead
+        from PySide6.QtWidgets import QApplication
+
+        QApplication.processEvents()  # Allow UI to update before expensive operation
+
+        # Only resize first few columns, let the rest use stretch
+        # This avoids measuring every cell which can freeze the UI
+        column_count = self._model.columnCount()
+        if len(nodes) < 1000:  # Only auto-resize for smaller datasets
+            for column in range(min(3, column_count)):  # Only resize first 3 columns
+                self._tree.resizeColumnToContents(column)
+                QApplication.processEvents()  # Keep UI responsive
+        else:
+            # For large datasets, set reasonable default widths
+            if column_count > 0:
+                self._tree.setColumnWidth(0, 300)  # Name column
+            if column_count > 1:
+                self._tree.setColumnWidth(1, 80)  # Type column
+            if column_count > 2:
+                self._tree.setColumnWidth(2, 100)  # Size column
+
+        logger.debug("Columns resized")
+        QApplication.processEvents()
+
+        logger.debug("Emitting selectionChanged and updating summary")
         self.selectionChanged.emit()
+        QApplication.processEvents()
+
         self._update_summary()
+        QApplication.processEvents()
+
         self._highlight_rule_index = None
         self._highlight_paths = set()
         self._model.highlight_rule(set(), None)
+        logger.debug("load_nodes completed")
 
     def set_root_path(self, path: Path) -> None:
         # Record the root path in the widget's accessible metadata.
@@ -368,7 +407,12 @@ class TreePanel(QWidget):
         return flattened
 
     def _update_summary(self) -> None:
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.debug("_update_summary: collecting visible nodes")
         nodes = self.collect_nodes(visible_only=True)
+        logger.debug("_update_summary: collected %d visible nodes", len(nodes))
         files = sum(1 for node in nodes if node.type == "file")
         dirs = sum(1 for node in nodes if node.type == "dir")
         total = len(nodes)

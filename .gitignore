@@ -35,36 +35,117 @@ build/
 dist/
 *.egg-info/
 *.egg
+*.whl
+*.tar.gz
+.wheel/
+
+# PyInstaller
+*.manifest
+*.spec.bak
 
 # Coverage and test artifacts
 .coverage
 .coverage.*
+.coverage.*.*
 coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
 htmlcov/
 .pytest_cache/
+.tox/
 .mypy_cache/
+.dmypy.json
+dmypy.json
 .ruff_cache/
 .pyright/
+.pytype/
 .benchmarks/
 
 # Logs and runtime files
 *.log
+*.log.*
 logs/
+*.pid
+*.seed
+*.pid.lock
 
 # macOS metadata
 .DS_Store
 **/.DS_Store
 .AppleDouble
 .LSOverride
+Icon
+._*
+
+# Windows metadata
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux metadata
+*~
+.directory
 
 # Qt / PySide generated files
 *.qmlc
 *.jsc
 *.pyi
+# Note: .pyi stubs from dependencies are OK, but ignore generated ones
 
-# UV caches
+# UV caches and artifacts
 .uv/
-uv.lock
+.uv-cache/
+# Note: uv.lock should typically be committed for reproducibility
+# Uncomment the next line if you want to ignore it:
+# uv.lock
 
 # Nox virtualenvs
 .nox/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb_checkpoints/
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath
+*.sage.py
+
+# Spyder
+.spyderproject
+.spyproject
+
+# Rope
+.ropeproject
+
+# mkdocs
+/site
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+*.orig
+
+# OS-specific temporary files
+.DS_Store?
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk

@@ -10,6 +10,7 @@ Desktop app for exploring files that match rclone filter rules. Built with PySid
 - Results pane highlights matched files with rule metadata and context actions.
 - Context menu lets you open matches in Finder/File Explorer or delete files safely to Trash.
 - Toolbar and File menu provide quick access to select a new root, load filter files, and export results.
+- Optimized performance for large datasets with thousands of files and deeply nested directories.
 
 ## Development
 
@@ -42,4 +43,6 @@ uv run --extra dev pytest tests/integration/test_scanner_finds_excluded_patterns
 ## Status
 
 Core scanning workflow, rule loading, and results interactions are in place.
+Performance optimizations ensure smooth operation with large datasets (nodes with 500+ children).
 Refer to `docs/program-specifications.md` for the roadmap and planned milestones.
+Refer to `docs/debugging-performance-issues.md` for performance troubleshooting guidance.

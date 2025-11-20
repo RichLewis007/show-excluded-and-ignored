@@ -35,6 +35,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed multi-monitor positioning for About dialog and main window to launch on the last-used monitor
 - Fixed case-insensitive sorting implementation for Name and Full Path columns using Qt's built-in `setSortCaseSensitivity`
 - Improved About dialog timing to show after main window is fully visible
+- **Performance**: Fixed application freezing when processing large datasets with many nested directories
+  - Implemented incremental node processing with frequent UI updates during tree model population
+  - Optimized recursive child processing with chunked processing (25-50 items) and event loop updates
+  - Improved column resizing to avoid expensive `resizeColumnToContents()` operations for large datasets
+  - Added detailed debug logging for performance bottleneck identification
+  - Application now handles nodes with 500+ children without UI freezing
 
 ## [Unreleased]
 
